@@ -76,66 +76,6 @@ class PublicCampaignController extends Controller
         ]);
     }
 
-    // Controller untuk mengarahkan ke halaman pembayaran
-    public function createDonation(Request $request, $id)
-    {
-        $request->merge(['campaign_id' => $id]);
-        $data = $request->validate([
-            'campaign_id' => ['required', 'integer', 'exists:campaigns,id'],
-            'amount' => ['required', 'integer', 'min:1000'],
-            'name' => ['required', 'string', 'max:100'],
-            'email' => ['required', 'email', 'max:100'],
-            'is_anonymous' => ['boolean'],
-            'message' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        // Validasi campaign
-        $campaign = Campaign::public()->findOrFail($data['campaign_id']);
-
-        // Membuat transaksi untuk donasi
-        $donation = DB::transaction(function () use ($campaign, $data) {
-            return Donation::create([
-                'campaign_id' => $campaign->id,
-                'order_id' => (string) Str::uuid(),
-                'amount' => (int) $data['amount'],
-                'donor_name' => $data['name'] ?? 'Anonymous',
-                'donor_email' => $data['email'],
-                'is_anonymous' => (bool) $data['is_anonymous'],
-                'message' => $data['message'] ?? null,
-                'payment_status' => 'PENDING',
-                'snap_token' => null,
-            ]);
-        });
-
-        // Integrasi dengan Midtrans
-        Config::$serverKey = config('midtrans.server_key');
-        Config::$clientKey = config('midtrans.client_key');
-        Config::$isProduction = config('midtrans.is_production');
-        Config::$isSanitized = true;
-        Config::$is3ds = true;
-
-        $params = [
-            'transaction_details' => [
-                'order_id' => $donation->order_id,
-                'gross_amount' => $donation->amount,
-            ],
-            'customer_details' => [
-                'first_name' => $donation->donor_name,
-                'email' => $donation->donor_email,
-            ],
-        ];
-
-        // Mendapatkan Snap Token
-        $snapToken = \Midtrans\Snap::getSnapToken($params);
-        $donation->snap_token = $snapToken;
-        $donation->save();
-
-        // Mengarahkan ke halaman pembayaran
-        return response()->json([
-            'snap_token' => $snapToken
-        ]);
-    }
-
     private function presentCampaign($c): array
     {
         return [

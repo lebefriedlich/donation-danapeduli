@@ -20,7 +20,7 @@ export default function PublicLayout({ children, title }: Props) {
                 </div>
             </header>
 
-            <main className="mx-auto max-w-6xl px-4 py-8">
+            <main className="mx-auto max-w-6xl px-4 py-10">
                 {title ? (
                     <div className="mb-6">
                         <h1 className="text-2xl font-black tracking-tight">{title}</h1>
@@ -30,7 +30,7 @@ export default function PublicLayout({ children, title }: Props) {
                 {children}
             </main>
 
-            <footer className="border-t border-slate-500 bg-white">
+            <footer className="border-t border-slate-500 bg-white mt-8">
                 <div className="mx-auto max-w-6xl px-4 py-5 text-center text-xs text-slate-500">© {new Date().getFullYear()} Dana Peduli</div>
             </footer>
         </div>
