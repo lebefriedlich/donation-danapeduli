@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Campaign;
 use App\Models\Donation;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -70,48 +71,71 @@ class DonationController extends Controller
 
     public function paymentStatus(Request $request)
     {
-
+        // 1. Validasi signature Midtrans
         $serverKey = config('midtrans.server_key');
-        $hashed = hash('sha512', $request->input('order_id') . $request->input('status_code') . $request->input('gross_amount') . $serverKey);
-        if ($hashed !== $request->input('signature_key')) {
-            // Cari transaksi berdasarkan order_id
-            $donation = Donation::where('order_id', $request->input('order_id'))->firstOrFail();
-            $status = $request->input('transaction_status');
+        $hashed = hash(
+            'sha512',
+            $request->order_id .
+                $request->status_code .
+                $request->gross_amount .
+                $serverKey
+        );
 
-            // Update status pembayaran berdasarkan status yang diterima dari Midtrans
-            switch ($status) {
-                case 'capture':
-                case 'settlement':
-                    $donation->payment_status = 'SUCCESS';
-                    break;
+        if ($hashed !== $request->signature_key) {
+            return response()->json(['message' => 'Invalid signature'], 400);
+        }
 
-                case 'pending':
-                    $donation->payment_status = 'PENDING';
-                    break;
+        DB::transaction(function () use ($request) {
 
-                case 'deny':
-                case 'failure':
-                    $donation->payment_status = 'FAILED';
-                    break;
+            // 2. Lock donation (anti double webhook)
+            $donation = Donation::where('order_id', $request->order_id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-                case 'cancel':
-                    $donation->payment_status = 'CANCELED';
-                    break;
+            $oldStatus = $donation->payment_status;
 
-                case 'refund':
-                    $donation->payment_status = 'REFUNDED';
-                    break;
+            // 3. Mapping Midtrans → ENUM DB
+            $newStatus = match ($request->transaction_status) {
+                'capture', 'settlement'   => 'PAID',
+                'pending'                 => 'PENDING',
+                'expire'                  => 'EXPIRED',
+                'refund', 'partial_refund' => 'REFUNDED',
+                default                   => 'FAILED',
+            };
 
-                case 'partial_refund':
-                    $donation->payment_status = 'PARTIAL_REFUND';
-                    break;
+            // 4. Kalau status sama → STOP (idempotent)
+            if ($oldStatus === $newStatus) {
+                return;
+            }
 
-                default:
-                    $donation->payment_status = 'UNKNOWN';
-                    break;
+            // 5. Update donation
+            $donation->payment_status = $newStatus;
+
+            if ($newStatus === 'PAID') {
+                $donation->paid_at = Carbon::now('Asia/Jakarta');
             }
 
             $donation->save();
-        }
+
+            // 6. Jika BARU berubah ke PAID → update campaign
+            if ($oldStatus !== 'PAID' && $newStatus === 'PAID') {
+
+                // 🔼 Tambah total_paid
+                Campaign::where('id', $donation->campaign_id)
+                    ->increment('total_paid', $donation->amount);
+
+                // 🔒 Auto close jika target tercapai
+                Campaign::where('id', $donation->campaign_id)
+                    ->where('auto_close_on_target', true)
+                    ->whereColumn('total_paid', '>=', 'target_amount')
+                    ->where('status', 'ACTIVE')
+                    ->update([
+                        'status'    => 'CLOSED',
+                        'closed_at' => now(),
+                    ]);
+            }
+        });
+
+        return response()->json(['message' => 'Payment processed'], 200);
     }
 }

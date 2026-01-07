@@ -40,17 +40,7 @@ export default function DonateForm({ campaign, midtransToken }: Props) {
         // Inisialisasi Midtrans Snap dengan token yang diterima dari backend
         window.snap.pay(snap_token, {
             onSuccess: function () {
-                alert('Pembayaran sukses! Terima kasih atas donasi Anda.');
                 window.location.href = '/';
-            },
-            onPending: function () {
-                alert('Pembayaran pending.');
-            },
-            onError: function () {
-                alert('Pembayaran gagal.');
-            },
-            onClose: function () {
-                alert('Pembayaran dibatalkan.');
             },
         });
     };

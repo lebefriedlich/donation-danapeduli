@@ -21,8 +21,8 @@ class PublicCampaignController extends Controller
         $type = in_array($type, ['DONATION', 'CROWDFUND', 'ALL'], true) ? $type : 'ALL';
 
         // Ambil semua campaign dengan status 'ACTIVE' atau 'CLOSED'
-        $campaigns = Campaign::public()
-            ->whereIn('status', ['ACTIVE', 'CLOSED'])
+        $campaigns = Campaign::with('donations')
+            ->public()
             ->when($type !== 'ALL', function ($query) use ($type) {
                 return $query->where('type', $type); // Filter berdasarkan tipe jika tipe bukan 'ALL'
             })
@@ -38,14 +38,14 @@ class PublicCampaignController extends Controller
 
     public function show(string $slug)
     {
-        $campaign = Campaign::with('donations')
+        $campaign = Campaign::with(['donations' => fn ($q) => $q->orderByDesc('paid_at')])
             ->public()
             ->where('slug', $slug)
             ->firstOrFail();
 
         $updates = $campaign->updates()
             ->published()
-            ->latest()
+            ->latest('published_at')
             ->get()
             ->map(fn($u) => [
                 'id' => $u->id,
@@ -89,6 +89,15 @@ class PublicCampaignController extends Controller
             'total_paid' => (int) $c->total_paid,
             'status' => $c->status,
             'cover_image' => $c->cover_image ? asset('storage/' . $c->cover_image) : null,
+            'donations' => $c->relationLoaded('donations')
+                ? $c->donations->map(fn($d) => [
+                    'id' => $d->id,
+                    'name' => $d->donor_name,
+                    'amount' => (int) $d->amount,
+                    'is_anonymous' => (bool) $d->is_anonymous,
+                    'message' => $d->message,
+                ])
+                : [],
         ];
     }
 }

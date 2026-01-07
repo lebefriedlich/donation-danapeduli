@@ -1,6 +1,15 @@
 export type CampaignType = "DONATION" | "CROWDFUND";
+export type CampaignFilterType = "ALL" | CampaignType;
 export type GoalType = "AMOUNT" | "NONE";
 export type CampaignStatus = "DRAFT" | "ACTIVE" | "CLOSED" | "ARCHIVED";
+
+export type Donation = {
+  id: number;
+  name: string;
+  amount: number;
+  is_anonymous?: boolean;
+  message?: string | null;
+};
 
 export type Campaign = {
   id: number;
@@ -17,6 +26,8 @@ export type Campaign = {
   status: CampaignStatus;
 
   cover_image?: string | null; // idealnya URL publik
+
+  donations?: Donation[];
 };
 
 export type CampaignUpdate = {
