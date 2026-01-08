@@ -126,7 +126,7 @@ class CampaignForm
                         ->nullable(),
 
                     Placeholder::make('info_hint')
-                        ->content('Sistem dapat menutup otomatis jika close_at terlewati (via scheduler).'),
+                        ->content('Sistem dapat menutup otomatis jika Close at terlewati (via scheduler).'),
                 ])
                 ->columns(2),
         ]);

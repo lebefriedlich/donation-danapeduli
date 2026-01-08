@@ -60,4 +60,25 @@ class Campaign extends Model
     {
         return $this->hasMany(CampaignUpdate::class);
     }
+
+    /* ========================
+     | Auto Close Logic
+     |======================== */
+    
+    /**
+     * Tutup campaign secara otomatis (set status CLOSED dan isi closed_at)
+     */
+    public function closeCampaign(): bool
+    {
+        if ($this->status === 'CLOSED' || $this->status === 'ARCHIVED') {
+            return false; // Sudah ditutup
+        }
+
+        $this->update([
+            'status' => 'CLOSED',
+            'closed_at' => now(),
+        ]);
+
+        return true;
+    }
 }
